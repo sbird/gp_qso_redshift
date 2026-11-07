@@ -101,7 +101,7 @@ min_z_c4 = @(wavelengths, z_qso) ...         % determines minimum z_DLA to searc
 %      min(wavelengths) / civ_1548_wavelength - 1;
 train_ratio =1;
 training_set_name = 'C13-full';
-testing_set_name = 'posterior_corrected';
+testing_set_name = 'REW_fine';
 max_civ = 7; 
 % base directory for all data
 base_directory = 'data';
