@@ -695,6 +695,12 @@ if saving==1
     filename = sprintf(['data/dr16/processed/processed_qsos_tst_%s%s_S_%d_E_%d.mat'], ...
                 testing_set_name, coverage_output_tag, ind_S, ind_E);
 
+    if exist('injector','var') && injector==1
+        assert(exist('injection_processor_file','var')==1 && ...
+            ~isfile(injection_processor_file),'Invalid or existing injection processor output.');
+        filename = injection_processor_file;
+    end
+
     save(filename, variables_to_save{:}, '-v7.3');
 end
 

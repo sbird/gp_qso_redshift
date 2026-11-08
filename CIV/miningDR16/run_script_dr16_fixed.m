@@ -1,5 +1,14 @@
 
 fprintf('Setting parameters ...\n')
+% Injection pilot: run select_no_civ_qsos first; set injector=1 to enable.
+% Each run gets a separate directory; change the seed or directory to rerun.
+injector = 0;
+injection_count = 100;
+injection_seed = 42;
+injection_selection_file = fullfile(pwd,'no_civ_selection', ...
+    'no_civ_pnull_0.950_pdoublet_0.950.mat');
+injection_output_dir = fullfile(pwd,'injection_recovery',sprintf('pilot_seed_%d',injection_seed));
+injection_match_kms = 300;
 % Processing is chunked so the script can be launched interactively or by a
 % batch scheduler.  Adjust these three values for a batch job; `num_quasars`
 % is clamped to the number of eligible preloaded spectra below.
@@ -85,6 +94,41 @@ load('data/dr16/processed/preloaded_qsos_dr16.mat');
 fprintf('preparing testing and prior indices ...\n')
 test_ind = (filter_flags==0);
 
+if injector == 1
+    assert(processing==1 && Averaging==1 && saving==1 && plotting==0 && ...
+        merging==0 && EWer==0 && pltP==0 && CredInt==0, ...
+        'Injection mode requires fixed processing, saving on, and optional downstream steps off.');
+    assert(isfile(injection_selection_file),'Run select_no_civ_qsos first: %s',injection_selection_file);
+    assert(~isfolder(injection_output_dir),'Injection output directory exists: %s',injection_output_dir);
+    selection=load(injection_selection_file,'selected_parent_mask');
+    assert(isfield(selection,'selected_parent_mask') && islogical(selection.selected_parent_mask) && ...
+        numel(selection.selected_parent_mask)==numel(test_ind), 'Invalid selection mask.');
+    eligible=selection.selected_parent_mask(:) & test_ind(:);
+    preload_for_injection=struct('all_wavelengths',{all_wavelengths},'all_flux',{all_flux}, ...
+        'all_noise_variance',{all_noise_variance},'all_pixel_mask',{all_pixel_mask}, ...
+        'all_sigma_pixel',{all_sigma_pixel});
+    [injected_spectra,injection_truth,injection_info]=inject_civ_doublets( ...
+        preload_for_injection,all_zqso_dr16,injection_count,'Eligible',eligible,'Seed',injection_seed);
+    clear preload_for_injection selection eligible
+    % The processor filters parent arrays in ascending parent-row order.
+    [parent_order,truth_order]=sort(injected_spectra.parent_index);
+    injection_truth=injection_truth(truth_order,:);
+    assert(isequal(parent_order(:),injection_truth.parent_index(:)),'Injection row alignment failed.');
+    for injection_row=1:numel(parent_order)
+        all_flux{parent_order(injection_row)}=injected_spectra.all_flux{truth_order(injection_row)};
+    end
+    clear injected_spectra
+    test_ind=false(size(test_ind)); test_ind(parent_order)=true;
+    ind_S=1; num_quasars=injection_count;
+    mkdir(injection_output_dir);
+    injection_processor_file=fullfile(injection_output_dir,'processed_injections.mat');
+    save(fullfile(injection_output_dir,'injection_truth.mat'),'injection_truth','injection_info', ...
+        'injection_selection_file','injection_seed','injection_match_kms','-v7.3');
+    rng(injection_seed,'twister');
+elseif injector ~= 0
+    error('injector must be 0 or 1.');
+end
+
 % `process_qsos_dr16_par` indexes the filtered test set.  Validate and clamp
 % the requested chunk here so its saved filename always records the actual
 % [start, end] range and the final chunk cannot run past the catalog.
@@ -120,6 +164,10 @@ if processing==1
         process_qsos_dr16_par_fixed
     else
         process_qsos_dr16_par_nofine
+    end
+    if injector==1
+        report_civ_injection_recovery(injection_truth, injection_processor_file, ...
+            injection_output_dir, injection_match_kms);
     end
     
 end
