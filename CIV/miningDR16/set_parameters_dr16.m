@@ -66,7 +66,7 @@ minFunc_options =               ...           % optimization options for model f
            'MaxFunEvals', 10000);
 
 % C4 model parameters: parameter samples (for Quasi-Monte Carlo)
-num_C4_samples           = 10000;                  % number of parameter samples
+num_C4_samples           = 50000;                  % number of parameter samples
 alpha                    = 0.9;                    % weight of KDE component in mixture
 uniform_min_log_nciv     = 12.5;                   % range of column density samples    [cm⁻²]
 uniform_max_log_nciv     = 16.1;                   % from uniform distribution
@@ -101,7 +101,29 @@ min_z_c4 = @(wavelengths, z_qso) ...         % determines minimum z_DLA to searc
 %      min(wavelengths) / civ_1548_wavelength - 1;
 train_ratio =1;
 training_set_name = 'C13-full';
-testing_set_name = 'REW_fine';
+% Default to the production coverage gate. Set CIV_DOUBLET_COVERAGE_GATE=0
+% for a matched gate-off run; the changed sample name keeps its MAT output separate.
+coverage_gate_setting = getenv('CIV_DOUBLET_COVERAGE_GATE');
+if isempty(coverage_gate_setting) || strcmp(coverage_gate_setting, '1')
+    doublet_coverage_enabled = true;
+    testing_set_name = 'REW_fine';
+elseif strcmp(coverage_gate_setting, '0')
+    doublet_coverage_enabled = false;
+    testing_set_name = 'REW_fine_gateoff';
+else
+    error('CIV_DOUBLET_COVERAGE_GATE must be 0 or 1.');
+end
+singlet_model_setting = getenv('CIV_SINGLET_MODEL');
+if isempty(singlet_model_setting) || strcmp(singlet_model_setting, '0')
+    singlet_model_enabled = false;
+elseif strcmp(singlet_model_setting, '1')
+    singlet_model_enabled = true;
+else
+    error('CIV_SINGLET_MODEL must be 0 or 1.');
+end
+if ~singlet_model_enabled
+    testing_set_name = [testing_set_name '_doublet_only'];
+end
 max_civ = 7; 
 % base directory for all data
 base_directory = 'data';

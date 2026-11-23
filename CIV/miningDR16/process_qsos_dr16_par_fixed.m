@@ -115,7 +115,24 @@ num_pixel_civ               = nan(num_quasars, max_civ, 2);
 % process_qsos_dr16_par_fixed_precoverage.m provides the matched baseline
 % without either coverage gate.
 if ~exist('doublet_coverage_enabled', 'var')
-    doublet_coverage_enabled = true;
+    coverage_gate_setting = getenv('CIV_DOUBLET_COVERAGE_GATE');
+    if isempty(coverage_gate_setting) || strcmp(coverage_gate_setting, '1')
+        doublet_coverage_enabled = true;
+    elseif strcmp(coverage_gate_setting, '0')
+        doublet_coverage_enabled = false;
+    else
+        error('CIV_DOUBLET_COVERAGE_GATE must be 0 or 1.');
+    end
+end
+if ~exist('singlet_model_enabled', 'var')
+    singlet_model_setting = getenv('CIV_SINGLET_MODEL');
+    if isempty(singlet_model_setting) || strcmp(singlet_model_setting, '1')
+        singlet_model_enabled = true;
+    elseif strcmp(singlet_model_setting, '0')
+        singlet_model_enabled = false;
+    else
+        error('CIV_SINGLET_MODEL must be 0 or 1.');
+    end
 end
 doublet_coverage_velocity_kms = 300;
 doublet_coverage_min_pixels = 3;
@@ -141,7 +158,7 @@ if (ind_S==250001)
 end
 
 for all_quasar_ind = ind_S:ind_E
-    % if ~ismember(all_quasar_ind, plotted_qso_ind)
+    % if ~ismember(all_quasar_ind, parent_rows)
     %     continue;
     % end
 
@@ -275,91 +292,103 @@ for all_quasar_ind = ind_S:ind_E
         fprintf('num_civ:%d\n',num_c4);
         this_z_1548 = (this_wavelengths / civ_1548_wavelength) - 1;
         this_z_1550 = (this_wavelengths / civ_1550_wavelength) - 1;
-        % if(num_c4>1)
-        %     % if((p_c4(this_quasar_ind, num_c4-1)>p_c4L1(this_quasar_ind, num_c4-1)) & ...
-        %     %    (p_c4(this_quasar_ind, num_c4-1)>p_no_c4(this_quasar_ind, num_c4-1)))
-        %     %     ind_not_remove = ind_not_remove  & ...
-        %     %         (abs(this_z_1548 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1))) & ...
-        %     %         (abs(this_z_1550 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1)));
-        %     % end
-        %     if (p_c4(this_quasar_ind, num_c4-1)>0.75)
-        %         ind_not_remove = ind_not_remove  & ...
-        %             (abs(this_z_1548 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1))) & ...
-        %             (abs(this_z_1550 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1)));
-        %     end
-        %     %
-        %     % if((p_c4L1(this_quasar_ind, num_c4-1)>p_c4(this_quasar_ind, num_c4-1)) & ...
-        %     %             (p_c4L1(this_quasar_ind, num_c4-1)>p_no_c4(this_quasar_ind, num_c4-1)))
-        %     %     ind_not_remove = ind_not_remove  & ...
-        %     %     (abs(this_z_1548 - map_z_c4L1(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L1(this_quasar_ind, num_c4-1)));
-        %     % end
+        if(num_c4>1)
+            if singlet_model_enabled
+                previous_doublet_wins = ...
+                    p_c4(this_quasar_ind, num_c4-1)>p_c4L1(this_quasar_ind, num_c4-1) & ...
+                    p_c4(this_quasar_ind, num_c4-1)>p_no_c4(this_quasar_ind, num_c4-1);
+                previous_null_wins = ...
+                    p_no_c4(this_quasar_ind, num_c4-1)>p_c4(this_quasar_ind, num_c4-1) & ...
+                    p_no_c4(this_quasar_ind, num_c4-1)>p_c4L1(this_quasar_ind, num_c4-1);
+            else
+                previous_doublet_wins = ...
+                    p_c4(this_quasar_ind, num_c4-1)>p_no_c4(this_quasar_ind, num_c4-1);
+                previous_null_wins = ...
+                    p_no_c4(this_quasar_ind, num_c4-1)>p_c4(this_quasar_ind, num_c4-1);
+            end
+            if previous_doublet_wins
+                ind_not_remove = ind_not_remove  & ...
+                    (abs(this_z_1548 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1))) & ...
+                    (abs(this_z_1550 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1)));
+            end
+            % if (p_c4(this_quasar_ind, num_c4-1)>0.75)
+            %     ind_not_remove = ind_not_remove  & ...
+            %         (abs(this_z_1548 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1))) & ...
+            %         (abs(this_z_1550 - map_z_c4L2(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L2(this_quasar_ind, num_c4-1)));
+            % end
+            %
+            if singlet_model_enabled && ...
+                    ((p_c4L1(this_quasar_ind, num_c4-1) > p_c4(this_quasar_ind, num_c4-1)) && ...
+                     (p_c4L1(this_quasar_ind, num_c4-1) > p_no_c4(this_quasar_ind, num_c4-1)))
+                ind_not_remove = ind_not_remove  & ...
+                (abs(this_z_1548 - map_z_c4L1(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L1(this_quasar_ind, num_c4-1)));
+            end
 
 
 
-        %      if (p_c4L1(this_quasar_ind, num_c4-1)>0.75)
-        %         ind_not_remove = ind_not_remove  & ...
-        %         (abs(this_z_1548 - map_z_c4L1(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L1(this_quasar_ind, num_c4-1)));
-        %     end
+            %  if (p_c4L1(this_quasar_ind, num_c4-1)>0.75)
+            %     ind_not_remove = ind_not_remove  & ...
+            %     (abs(this_z_1548 - map_z_c4L1(this_quasar_ind, num_c4-1))>kms_to_z(dv_mask)*(1+map_z_c4L1(this_quasar_ind, num_c4-1)));
+            % end
 
 
-        %     if((p_no_c4(this_quasar_ind, num_c4-1)>p_c4(this_quasar_ind, num_c4-1)) & ...
-        %         (p_no_c4(this_quasar_ind, num_c4-1)>p_c4L1(this_quasar_ind, num_c4-1)))
+            if previous_null_wins
 
-        %         fprintf('No more than %d CIVs in this spectrum.\n', num_c4-1)
+                fprintf('No more than %d CIVs in this spectrum.\n', num_c4-1)
+                break;
+            end
+
+        end
+
+        % if num_c4 > 1
+        %     previous = num_c4 - 1;
+
+        %     pDoublet = p_c4(this_quasar_ind, previous);
+        %     pSinglet = p_c4L1(this_quasar_ind, previous);
+        %     pNull    = p_no_c4(this_quasar_ind, previous);
+
+        %     % Stop if the null model is preferred.
+        %     if pNull >= max(pDoublet, pSinglet)
+        %         fprintf('Stopping: null model preferred at search %d.\n', ...
+        %             previous);
         %         break;
         %     end
 
+        %     oldMask = ind_not_remove;
+
+        %     if pDoublet > 0.75
+        %         zPrevious = map_z_c4L2(this_quasar_ind, previous);
+        %         dz = kms_to_z(dv_mask) * (1 + zPrevious);
+
+        %         ind_not_remove = ind_not_remove & ...
+        %             (abs(this_z_1548 - zPrevious) > dz) & ...
+        %             (abs(this_z_1550 - zPrevious) > dz);
+
+        %     elseif pSinglet > 0.75
+        %         zPrevious = map_z_c4L1(this_quasar_ind, previous);
+        %         dz = kms_to_z(dv_mask) * (1 + zPrevious);
+
+        %         ind_not_remove = ind_not_remove & ...
+        %             (abs(this_z_1548 - zPrevious) > dz);
+
+        %     else
+        %         % No confident feature to mask: do not repeat the same search.
+        %         fprintf(['Stopping: neither absorber model exceeds 0.75 ' ...
+        %             'at search %d.\n'], previous);
+        %         break;
+        %     end
+
+        %     % Ensure the next search actually uses different data.
+        %     if isequal(ind_not_remove, oldMask)
+        %         fprintf('Stopping: masking removed no additional pixels.\n');
+        %         break;
+        %     end
+
+        %     if ~any(ind_not_remove)
+        %         fprintf('Stopping: no usable pixels remain.\n');
+        %         break;
+        %     end
         % end
-
-        if num_c4 > 1
-            previous = num_c4 - 1;
-
-            pDoublet = p_c4(this_quasar_ind, previous);
-            pSinglet = p_c4L1(this_quasar_ind, previous);
-            pNull    = p_no_c4(this_quasar_ind, previous);
-
-            % Stop if the null model is preferred.
-            if pNull >= max(pDoublet, pSinglet)
-                fprintf('Stopping: null model preferred at search %d.\n', ...
-                    previous);
-                break;
-            end
-
-            oldMask = ind_not_remove;
-
-            if pDoublet > 0.75
-                zPrevious = map_z_c4L2(this_quasar_ind, previous);
-                dz = kms_to_z(dv_mask) * (1 + zPrevious);
-
-                ind_not_remove = ind_not_remove & ...
-                    (abs(this_z_1548 - zPrevious) > dz) & ...
-                    (abs(this_z_1550 - zPrevious) > dz);
-
-            elseif pSinglet > 0.75
-                zPrevious = map_z_c4L1(this_quasar_ind, previous);
-                dz = kms_to_z(dv_mask) * (1 + zPrevious);
-
-                ind_not_remove = ind_not_remove & ...
-                    (abs(this_z_1548 - zPrevious) > dz);
-
-            else
-                % No confident feature to mask: do not repeat the same search.
-                fprintf(['Stopping: neither absorber model exceeds 0.75 ' ...
-                    'at search %d.\n'], previous);
-                break;
-            end
-
-            % Ensure the next search actually uses different data.
-            if isequal(ind_not_remove, oldMask)
-                fprintf('Stopping: masking removed no additional pixels.\n');
-                break;
-            end
-
-            if ~any(ind_not_remove)
-                fprintf('Stopping: no usable pixels remain.\n');
-                break;
-            end
-        end
 
         log_likelihoods_no_c4(this_quasar_ind, num_c4) = ...
             log_mvnpdf_low_rank(this_flux(ind_not_remove), this_mu(ind_not_remove),...
@@ -532,19 +561,27 @@ for all_quasar_ind = ind_S:ind_E
             map_N_c4L2(this_quasar_ind, num_c4), map_z_c4L2(this_quasar_ind, num_c4),...
             map_sigma_c4L2(this_quasar_ind, num_c4)/1e5);
 
-        max_log_posteriors = max([log_posteriors_no_c4(this_quasar_ind, num_c4), log_posteriors_c4L1(this_quasar_ind, num_c4), log_posteriors_c4L2(this_quasar_ind,num_c4)], [], 2);
-
-        model_posteriors = ...
-            exp(bsxfun(@minus, ...
-            [log_posteriors_no_c4(this_quasar_ind, num_c4), log_posteriors_c4L1(this_quasar_ind, num_c4), log_posteriors_c4L2(this_quasar_ind, num_c4)], ...
-            max_log_posteriors));
-        model_posteriors = ...
-            bsxfun(@times, model_posteriors, 1 ./ sum(model_posteriors, 2));
-
+        if singlet_model_enabled
+            competing_log_posteriors = [log_posteriors_no_c4(this_quasar_ind, num_c4), ...
+                log_posteriors_c4L1(this_quasar_ind, num_c4), ...
+                log_posteriors_c4L2(this_quasar_ind, num_c4)];
+        else
+            competing_log_posteriors = [log_posteriors_no_c4(this_quasar_ind, num_c4), ...
+                log_posteriors_c4L2(this_quasar_ind, num_c4)];
+        end
+        max_log_posteriors = max(competing_log_posteriors, [], 2);
+        model_posteriors = exp(bsxfun(@minus, competing_log_posteriors, max_log_posteriors));
+        model_posteriors = bsxfun(@times, model_posteriors, 1 ./ sum(model_posteriors, 2));
         p_no_c4(this_quasar_ind, num_c4) = model_posteriors(1);
-        p_c4L1(this_quasar_ind, num_c4)  = model_posteriors(2);
-        p_c4(this_quasar_ind, num_c4)    = 1 - p_no_c4(this_quasar_ind, num_c4) -...
-            p_c4L1(this_quasar_ind, num_c4);
+        if singlet_model_enabled
+            p_c4L1(this_quasar_ind, num_c4) = model_posteriors(2);
+            % Use the normalized doublet component directly. Computing it as
+            % a residual can produce a tiny negative probability from roundoff.
+            p_c4(this_quasar_ind, num_c4) = model_posteriors(3);
+        else
+            p_c4L1(this_quasar_ind, num_c4) = 0;
+            p_c4(this_quasar_ind, num_c4) = model_posteriors(2);
+        end
 
         % Draw a compact, joint representation of the L2 posterior.  The
         % likelihood-only weights are appropriate because the CIV proposals
@@ -685,9 +722,12 @@ if saving==1
         'posterior_REW_1548_16', 'posterior_REW_1548_84', ...
         'posterior_REW_1550_16', 'posterior_REW_1550_84', ...
         'doublet_coverage_enabled', 'doublet_coverage_velocity_kms', 'doublet_coverage_min_pixels', ...
+        'singlet_model_enabled', ...
         'num_doublet_coverage_rejected'};
 
-    if doublet_coverage_enabled
+    % set_parameters_dr16 gives gate-off runs a distinct testing_set_name.
+    % Retain the legacy suffix for direct callers using a different name.
+    if doublet_coverage_enabled || contains(testing_set_name, 'gateoff')
         coverage_output_tag = '';
     else
         coverage_output_tag = '_precoverage';
