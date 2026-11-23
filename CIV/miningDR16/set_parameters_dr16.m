@@ -58,8 +58,8 @@ dlambda            = 0.5;                    % separation of wavelength grid    
 k                  = 20;                      % rank of non-diagonal contribution
 max_noise_variance = 0.5^2;                   % maximum pixel noise allowed during model training
 h                  = 2;                     % masking par to remove CIV region 
-nAVG               = 20;                     % number of points added between two 
-                                            % observed wavelengths to make the Voigt finer
+nAVG               = 8;                     % number of fine-grid points inserted between native pixels
+fine_factor         = nAVG + 1;              % fine-grid samples per native-pixel interval
 % optimization parameters
 minFunc_options =               ...           % optimization options for model fitting
     struct('MaxIter',     10000, ...
@@ -101,7 +101,29 @@ min_z_c4 = @(wavelengths, z_qso) ...         % determines minimum z_DLA to searc
 %      min(wavelengths) / civ_1548_wavelength - 1;
 train_ratio =1;
 training_set_name = 'C13-full';
-testing_set_name = 'DR16';
+% Default to the production coverage gate. Set CIV_DOUBLET_COVERAGE_GATE=0
+% for a matched gate-off run; the changed sample name keeps its MAT output separate.
+coverage_gate_setting = getenv('CIV_DOUBLET_COVERAGE_GATE');
+if isempty(coverage_gate_setting) || strcmp(coverage_gate_setting, '1')
+    doublet_coverage_enabled = true;
+    testing_set_name = 'REW_fine';
+elseif strcmp(coverage_gate_setting, '0')
+    doublet_coverage_enabled = false;
+    testing_set_name = 'REW_fine_gateoff';
+else
+    error('CIV_DOUBLET_COVERAGE_GATE must be 0 or 1.');
+end
+singlet_model_setting = getenv('CIV_SINGLET_MODEL');
+if isempty(singlet_model_setting) || strcmp(singlet_model_setting, '0')
+    singlet_model_enabled = false;
+elseif strcmp(singlet_model_setting, '1')
+    singlet_model_enabled = true;
+else
+    error('CIV_SINGLET_MODEL must be 0 or 1.');
+end
+if ~singlet_model_enabled
+    testing_set_name = [testing_set_name '_doublet_only'];
+end
 max_civ = 7; 
 % base directory for all data
 base_directory = 'data';
@@ -138,9 +160,7 @@ file_loader_sdss= @(plate, mjd, fiber_id) ...
             mjd,                                         ...
             fiber_id)));
 
-   file_loader_sdss_2256 =  @(plate, mjd, fiber_id) ...
-              (read_spec(sprintf("data/dr16/sas/dr16/sdss/spectro/redux/103/%04i/spec-%04i-%i-%04i.fits", ...
-            plate,                                       ...
-            plate,                                       ...
-            mjd,                                         ...
-            fiber_id)));
+   file_loader_sdss_2256 = @(plate,mjd,fiber_id) ...
+    read_spec(sprintf(['data/dr16/sas/dr16/sdss/spectro/redux/103/' ...
+                       'spectra/lite/%04i/spec-%04i-%i-%04i.fits'], ...
+                      plate, plate, mjd, fiber_id));
